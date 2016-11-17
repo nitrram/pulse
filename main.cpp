@@ -22,6 +22,7 @@
 #include <pulse/error.h>
 #define BUFSIZE 1024
 
+#define __PROFILE 0
 
 // Include GLEW
 #include <GL/glew.h>
@@ -127,7 +128,7 @@ static GLubyte *_pixel_buf = 0;
 #endif /*__OPEN_CL__*/
 
 
-#define VIDEO_SURFACE_NUM_PBOS 2
+#define VIDEO_SURFACE_NUM_PBOS 1
 
 static GLuint pbos[VIDEO_SURFACE_NUM_PBOS];
 static unsigned int read_dx;
@@ -159,10 +160,10 @@ void setup_gl(char *zero_argv) {
 	memset(frag_shader, 0, 1024);
 
 	strcpy(vert_shader, zero_argv);
-	strcat(vert_shader, "TransformVertexShader.vertexshader");
+	strcat(vert_shader, "rectangle.vert");
 
 	strcpy(frag_shader, zero_argv);
-	strcat(frag_shader, "TextureFragmentShader.fragmentshader");
+	strcat(frag_shader, "texture.frag");
 
 	prog = LoadShaders( vert_shader, frag_shader );
 
@@ -284,7 +285,7 @@ int main(int argc, char*argv[]) {
 	/* The sample type to use */
 	static const pa_sample_spec ss = {
 		.format = PA_SAMPLE_U8,
-		.rate = 44100,
+		.rate = 32000,
 		.channels = 2
 	};
 	pa_simple *s = NULL;
@@ -333,15 +334,25 @@ int main(int argc, char*argv[]) {
 
 #endif /*__VISUAL__*/
 
-
+#ifdef __PROFILE
+	uint64_t c_sec = 0;
+	uint32_t cnt = 0;
+#endif /*__PROFILE*/
 	/* Create the recording stream */
 	if (!(s = pa_simple_new(NULL, argv[0], PA_STREAM_RECORD, NULL, "record", &ss, NULL, NULL, &error))) {
 		fprintf(stderr, __FILE__": pa_simple_new() failed: %s\n", pa_strerror(error));
 		goto finish;
 	}
 
+	uint8_t buf[BUFSIZE];
 	while (!glfwWindowShouldClose(window)) {
-		uint8_t buf[BUFSIZE];
+
+#ifdef __PROFILE
+		struct timeval t0, t1;
+		gettimeofday(&t0, 0);
+#endif /*__PROFILE*/
+
+
 		/* Record some data ... */
 		if (pa_simple_read(s, buf, sizeof(buf), &error) < 0) {
 			fprintf(stderr, __FILE__": pa_simple_read() failed: %s\n", pa_strerror(error));
@@ -352,60 +363,34 @@ int main(int argc, char*argv[]) {
 		//four1(buf, BUFSIZE);
 #ifdef __VISUAL__
 
-//		int stride = WIDTH * 4;
-//		int begin = HEIGHT/2;
-
-		//	memset(_pixel_buf, 0, _num_bytes);
-
-		memcpy(_pixel_buf, buf, BUFSIZE);
-
-			/*
-		for(int amp=0; amp < BUFSIZE; amp++) {
-			size_t px = (buf[amp] * stride) + (amp*4);
-			_pixel_buf[px] = 0x80;
-			_pixel_buf[px+1] = 0x00;
-			_pixel_buf[px+2] = 0xff;
-			_pixel_buf[px+3] = 0x10;
-		}
-			*/
-
-
-		/*
-		for(int i=stride*begin;i<stride*(begin+10);i+=64) {
-			_pixel_buf[i] = 0x80;
-			_pixel_buf[i+1] = 0x00;
-			_pixel_buf[i+2] = 0x00;
-			_pixel_buf[i+3] = 0xff;
-		}
-		*/
-
-
-		setPixels(_pixel_buf);
+		setPixels(buf);
 		draw();
 
 		glfwSwapBuffers(window);
-
 #endif /*__VISUAL__*/
 
-		/*
-		for(size_t i=0;i<20;++i) {
-			printf("%02x ", buf[i]);
+#ifdef __PROFILE
+		gettimeofday(&t1, 0);
+		float check = t1.tv_usec - t0.tv_usec;
+
+		c_sec += abs((t1.tv_usec - t0.tv_usec) / 1000 );
+		++cnt;
+		if(c_sec > 1000) {
+			printf("avg time spent per second per loop: %ldms\n", c_sec / cnt);
+			c_sec ^= ~c_sec;
+			cnt ^= ~cnt;
 		}
-		printf("\n");
-		*/
-		// /* And write it to STDOUT */
-		// if (loop_write(STDOUT_FILENO, buf, sizeof(buf)) != sizeof(buf)) {
-		//	  fprintf(stderr, __FILE__": write() failed: %s\n", strerror(errno));
-		//	  goto finish;
-		// }
+#endif /*__PROFILE*/
 	}
 	ret = 0;
   finish:
 
 #ifdef __VISUAL__
 
-	free(_pixel_buf);
-	_pixel_buf = 0;
+	if(_pixel_buf) {
+		free(_pixel_buf);
+		_pixel_buf = 0;
+	}
 
 	if(texId) {
 		glDeleteTextures(1, &texId);

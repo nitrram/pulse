@@ -11,7 +11,7 @@ out vec2 UV;
 void main(){
 
 	// Output position of the vertex, in clip space : MVP * position
-	gl_Position = vec4(vertexPosition_modelspace, 0 , 1);// - vec4(0, 1, 0, 0);
+	gl_Position = vec4(vertexPosition_modelspace, 0 , 1); // * vec4(1, .3, 1, 1);
 	//pixelPos = gl_Position.xy;
 
 	//gl_Position += vec4(0, -0.9,0,0);

@@ -13,17 +13,10 @@ void main(){
 
 	float val = texture2D(myTextureSampler, vec2(UV.x, 0)).a;
 
-	float diff = 1.0/1024.0;
-
-	if(UV.y < (val + diff) && UV.y > (val - diff)) {
-		float col = log(UV.x+1.5)/log(10) + 0.8;
+	if(abs(UV.y - val) < 0.001) {
+		float col = UV.x;
 		color = vec3(col, 1-col, col);
 	} else {
 		color = vec3(0, 0, 0);
 	}
-	// Output color = color of the texture at the specified UV
-	//color = texture2D( myTextureSampler, vec2(UV.x, 0)).aaa;
-
-
-	//color = vec3(UV.x, 0, 0);
 }
