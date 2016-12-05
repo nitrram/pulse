@@ -20,9 +20,9 @@
 #include <errno.h>
 #include <pulse/simple.h>
 #include <pulse/error.h>
-#define BUFSIZE 1024
+#define BUFSIZE 512
 
-#define __PROFILE 0
+//#define __PROFILE 0
 
 // Include GLEW
 #include <GL/glew.h>
@@ -33,91 +33,15 @@
 #define WINDOW_HEIGHT 768
 #define HEIGHT 1 //768
 
-static const int _num_bytes = WIDTH * HEIGHT *sizeof(char);
+static const int _num_bytes = BUFSIZE * HEIGHT *sizeof(char);
 GLFWwindow* window;
 
 #include "shader.h"
 
 // use fft
-#include <stdio.h>
-#include <stdlib.h>
-//#include "fft.h"
-
-/*
-// The sample type to use
-static const pa_sample_spec ss = {
-.format = PA_SAMPLE_S32LE , //PA_SAMPLE_S16BE, ??? Which one to us here ??? BE...Big Endian
-.rate = 44100, // That are samples per second
-.channels = 2
-};
-
-// Create the recording stream
-// see: http://freedesktop.org/software/pulseaudio/doxygen/parec-simple_8c-example.html
-if (!(s = pa_simple_new(NULL, "Record", PA_STREAM_RECORD, NULL, "record", &ss, NULL, NULL, &error))) {
-fprintf(stderr, __FILE__": pa_simple_new() failed: %s\n", pa_strerror(error));
-pa_simple_free(s);
-exit(EXIT_FAILURE);
-}
-
-int i = -1;
-
-while (!exit_program) {
-i = (i+1) % BUFNUMBER;
-
-pthread_mutex_lock(&(buffer[i].write));
-// Record data and save it to the buffer
-if (pa_simple_read(s, buffer[i].buf, sizeof(buffer[i].buf), &error) < 0) {
-fprintf(stderr, __FILE__": pa_simple_read() failed: %s\n", pa_strerror(error));
-pa_simple_free(s);
-exit(EXIT_FAILURE);
-}
-
-// unlock the reading mutex
-pthread_mutex_unlock(&(buffer[i].read)); // open up for reading
-
-}*/
-
-//===========================================================
-// #define BUFSIZE 44100  // Size of one element
-// #define BUFNUMBER 16 // Number of elements
-// #define AUDIO_BUFFER_FORMAT char
-
-// // one element of the ringbuffer
-// typedef struct ringbuf {
-//	   AUDIO_BUFFER_FORMAT buf[BUFSIZE]; /* The buffer array */
-//	   pthread_mutex_t read; /* indicates if block was read */
-//	   pthread_mutex_t write; /* for locking writing */
-// } ringbuffer_element;
-//===========================================================
-
-/*
-// The sample type to use
-static const pa_sample_spec ss = {
-.format = PA_SAMPLE_S32LE , //PA_SAMPLE_S16BE,
-.rate = 44100,
-.channels = 2
-};
-
-if (stream == NULL) {
-if (!(stream = pa_simple_new(NULL, "Stream", PA_STREAM_PLAYBACK, NULL, "playback", &ss, NULL, NULL, &error))) {
-fprintf(stderr, __FILE__": pa_simple_new() failed: %s\n", pa_strerror(error));
-return false;
-}
-}
-
-if (pa_simple_write(stream, buf, (size_t) size, &error) < 0) {
-fprintf(stderr, __FILE__": pa_simple_write() failed: %s\n", pa_strerror(error));
-pa_simple_free(stream);
-return false;
-}
-
-// Make sure that every single sample was played
-if (pa_simple_drain(stream, &error) < 0) {
-fprintf(stderr, __FILE__": pa_simple_drain() failed: %s\n", pa_strerror(error));
-pa_simple_free(stream);
-return false;
-}
-*/
+// #include <stdio.h>
+// #include <stdlib.h>
+#include "fft.h"
 
 #ifdef __VISUAL__
 
@@ -128,7 +52,7 @@ static GLubyte *_pixel_buf = 0;
 #endif /*__OPEN_CL__*/
 
 
-#define VIDEO_SURFACE_NUM_PBOS 1
+#define VIDEO_SURFACE_NUM_PBOS 2
 
 static GLuint pbos[VIDEO_SURFACE_NUM_PBOS];
 static unsigned int read_dx;
@@ -168,6 +92,7 @@ void setup_gl(char *zero_argv) {
 	prog = LoadShaders( vert_shader, frag_shader );
 
 	texId  = glGetUniformLocation(prog, "myTextureSampler");
+	glUniform1i(texId, 0);
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
@@ -178,19 +103,21 @@ void setup_gl(char *zero_argv) {
 	glGenBuffers(VIDEO_SURFACE_NUM_PBOS, pbos);
 	for(int i = 0; i < VIDEO_SURFACE_NUM_PBOS; ++i) {
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbos[i]);
-		glBufferData(GL_PIXEL_UNPACK_BUFFER, _num_bytes, NULL, GL_STREAM_DRAW);
+		glBufferData((i % 2) ? GL_PIXEL_UNPACK_BUFFER : GL_PIXEL_PACK_BUFFER, _num_bytes, NULL, GL_STREAM_DRAW);
+
 	}
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
 	glGenTextures(1, &tex);
 	glBindTexture(GL_TEXTURE_2D, tex);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, WIDTH, HEIGHT, 0, GL_ALPHA, GL_UNSIGNED_BYTE, 0);
-	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, BUFSIZE, HEIGHT, 0, GL_ALPHA, GL_UNSIGNED_BYTE, 0);
 
 	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
-	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	//float bc[] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	//glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, bc);
@@ -199,17 +126,17 @@ void setup_gl(char *zero_argv) {
 	glBindVertexArray(vao);
 
 	GLfloat vertices[] = {
-		-1.0f,	1.0f,
-		 1.0f,	1.0f,
-		 1.0f, -1.0f,
-		-1.0f, -1.0f
+		-1.0f, -1.0f,
+		1.0f, -1.0f,
+		1.0f, 1.0f,
+		-1.0f, 1.0f
 	};
 
 	GLfloat tex_coords[] = {
-		-1.0f,	1.0f,
-		 1.0f,	1.0f,
-		 1.0f, -1.0f,
-		-1.0f, -1.0f
+		-1.0f, -1.0f,
+		1.0f, -1.0f,
+		1.0f, 1.0f,
+		-1.0f, 1.0f
 	};
 
 	glGenBuffers(2, vbo);
@@ -230,7 +157,7 @@ void setup_gl(char *zero_argv) {
 	glEnableVertexAttribArray(0); // pos
 	glEnableVertexAttribArray(1); // tex
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_TRUE, 0, (GLvoid*)0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
 
 	_pixel_buf = (GLubyte*)malloc(_num_bytes);
 }
@@ -250,33 +177,43 @@ void setPixels(unsigned char* pixels) {
 	write_dx = (read_dx + 1) % VIDEO_SURFACE_NUM_PBOS;
 
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbos[read_dx]);
+	//glBindTexture(GL_TEXTURE_2D, tex);
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, BUFSIZE, HEIGHT, GL_ALPHA, GL_UNSIGNED_BYTE, 0);
 
-	glBindTexture(GL_TEXTURE_2D, tex);
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, WIDTH, HEIGHT, GL_ALPHA, GL_UNSIGNED_BYTE, 0);
-
-	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbos[write_dx]);
-	glBufferData(GL_PIXEL_UNPACK_BUFFER, _num_bytes, NULL, GL_STREAM_DRAW);
-	GLubyte* ptr = (GLubyte*)glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
+	glBindBuffer(GL_PIXEL_PACK_BUFFER, pbos[write_dx]);
+	glBufferData(GL_PIXEL_PACK_BUFFER, _num_bytes, NULL, GL_STREAM_DRAW);
+	GLubyte* ptr = (GLubyte*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_WRITE_ONLY);
 	if(ptr) {
 		memcpy(ptr, pixels, _num_bytes);
-		glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+		glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
 	}
 
+	glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+	//glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 
 void draw(/*int x, int	y*/) {
-	glDepthMask(GL_FALSE);
 
-	glBindVertexArray(vao);
+	glEnableVertexAttribArray(0); // pos
+	glEnableVertexAttribArray(1); // tex
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
+
+	//glDepthMask(GL_FALSE);
+
+	//glBindVertexArray(vao);
 	glUseProgram(prog);
 
-	glActiveTexture(GL_TEXTURE0);
+	//glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, tex);
 
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-	glDepthMask(GL_TRUE);
+	//glDepthMask(GL_FALSE);
+
+	glDisableVertexAttribArray(0);
+	glDisableVertexAttribArray(1);
 }
 
 #endif /*__VISUAL*/
@@ -285,14 +222,14 @@ int main(int argc, char*argv[]) {
 	/* The sample type to use */
 	static const pa_sample_spec ss = {
 		.format = PA_SAMPLE_U8,
-		.rate = 32000,
-		.channels = 2
+		.rate = 24000,
+		.channels = 1
 	};
 	pa_simple *s = NULL;
 	int ret = 1;
 	int error;
 
-//	uint8_t *fft_buf = allocate(BUFSIZE);
+	uint8_t *fft_buf = allocate(BUFSIZE);
 
 //	printf("%s\n", *argv);
 
@@ -360,10 +297,11 @@ int main(int argc, char*argv[]) {
 		}
 
 		//fft(buf, BUFSIZE, fft_buf);
-		//four1(buf, BUFSIZE);
+		four1(fft_buf, buf, BUFSIZE);
 #ifdef __VISUAL__
 
 		setPixels(buf);
+		//setPixels(fft_buf);
 		draw();
 
 		glfwSwapBuffers(window);
@@ -409,7 +347,7 @@ int main(int argc, char*argv[]) {
 #endif /*__VISUAL__*/
 
 
-	//free(fft_buf);
+	free(fft_buf);
 	if (s)
 		pa_simple_free(s);
 	return ret;

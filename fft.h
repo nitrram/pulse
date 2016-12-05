@@ -33,7 +33,7 @@ extern "C" {
 
     void fft(const uint8_t *buf, size_t size, uint8_t *out);
 
-    void four1(uint8_t *buf, size_t size);
+    void four1(uint8_t *fft_buf, const uint8_t *buf, size_t size);
 
     uint8_t *allocate(size_t bufsize);
 

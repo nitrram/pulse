@@ -3,6 +3,14 @@
 #include <math.h>
 #include <stdio.h>
 
+static const unsigned char BitReverseTable256[256] =
+{
+#	define R2(n)	 n,		n + 2*64,	  n + 1*64,		n + 3*64
+#	define R4(n) R2(n), R2(n + 2*16), R2(n + 1*16), R2(n + 3*16)
+#	define R6(n) R4(n), R4(n + 2*4 ), R4(n + 1*4 ), R4(n + 3*4 )
+    R6(0), R6(2), R6(1), R6(3)
+};
+
 #ifdef __OPEN_CL__
 static cl_mem _out_buf;
 static cl_kernel _fft_kernel;
@@ -15,6 +23,7 @@ static cl_command_queue _queue;
 
 #define DEVICE_TYPE CL_DEVICE_TYPE_CPU
 #define PROGRAM_SOURCE "fft_cl.cl"
+
 
 void CL_CALLBACK err_callback(const char *errinfo, const void *prvt_info, size_t cb, void *user_data) {
     printf("Error in creating context: %s\n", errinfo);
@@ -70,6 +79,8 @@ cl_program build_program(cl_context context,
 
 #endif /* __OPEN_CL__ */
 
+#define swap(type, i, j) {type t = i; i = j; j = t;}
+
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 #define SHIFT_LEFT(_index_, _shift_pos_, _mask_left_)	  \
     br[0] = (_index_ << _shift_pos_) & _mask_left_; \
@@ -85,11 +96,11 @@ cl_program build_program(cl_context context,
     br[3] = (((_index_)+3) >> _shift_pos_) & _mask_right_;
 
 
-inline void swap(uint8_t *nr, uint8_t *ni) {
-    uint8_t tmp = *nr;
-    *nr = *ni;
-    *ni = tmp;
-}
+/* inline void swap(uint8_t *nr, uint8_t *ni) { */
+/*	   uint8_t tmp = *nr; */
+/*	   *nr = *ni; */
+/*	   *ni = tmp; */
+/* } */
 
 #define MOD(n, N) ((n<0)? N+n : n)
 
@@ -107,56 +118,81 @@ void conv(const uint8_t *func, size_t func_size,
     }
 }
 
-void four1(uint8_t *data, size_t size) {
-    unsigned long n, mmax, m, j, istep, i;
+void four1(uint8_t *fft_buf, const uint8_t *data, size_t size) {
+    unsigned long n, mmax, m, j, istep;
+    uint32_t i;
     double wtemp, wr, wpr, wpi, wi, theta;
     double tempr, tempi;
 
+    //0 8 4 12 2 10 6 14 1 9  5 13	3 11  7 15
+    //0 1 2	 3 4  5 6  7 8 9 10 11 12 13 14 15
 
     double t1 = now_ms();
 
-    // reverse-binary reindexing
-    n = size<<1;
-    j=1;
-    for (i=1; i<n; i+=2) {
-        if (j>i) {
-            swap(&data[j-1], &data[i-1]);
-            swap(&data[j], &data[i]);
-        }
-        m = size;
-        while (m>=2 && j>m) {
-            j -= m;
-            m >>= 1;
-        }
-        j += m;
-    };
+    // reverse binary reindexing
+    unsigned int c;
+    uint32_t i_size;
+    unsigned char *p, *q;
+    for(i=1; i< size; ++i) {
+        c = 0; // c will get v reversed
+        i_size = (uint32_t)(log(i)/log(2));
+
+        //(2 bytes are ok, because the buffer won't get any higher anyway)
+        p = (unsigned char *) &i;
+        q = (unsigned char *) &c;
+        q[1] = BitReverseTable256[p[0]];
+        q[0] = BitReverseTable256[p[1]];
+
+        c >>= (15-i_size);
+
+        fft_buf[c] = data[i];
+
+        //printf("%u %u\n", c, i);
+    }
 
     // here begins the Danielson-Lanczos section
     mmax=2;
     while (n>mmax) {
-        istep = mmax<<1;
-        theta = -(2*M_PI/mmax);
-        wtemp = sin(0.5*theta);
-        wpr = -2.0*wtemp*wtemp;
-        wpi = sin(theta);
-        wr = 1.0;
-        wi = 0.0;
-        for (m=1; m < mmax; m += 2) {
-            for (i=m; i <= n; i += istep) {
-                j=i+mmax;
-                tempr = wr*data[j-1] - wi*data[j];
-                tempi = wr * data[j] + wi*data[j-1];
+           istep = mmax<<1;
+           theta = -(2*M_PI/mmax);
+           wtemp = sin(0.5*theta);
+           wpr = -2.0*wtemp*wtemp;
+           wpi = sin(theta);
+           wr = 1.0;
+           wi = 0.0;
+           for (m=1; m < mmax; m += 2) {
+               for (i=m; i <= n; i += istep) {
+                   j=i+mmax;
+                   tempr = wr*fft_buf[j-1] - wi*fft_buf[j];
+                   tempi = wr * fft_buf[j] + wi*fft_buf[j-1];
 
-                data[j-1] = data[i-1] - tempr;
-                data[j] = data[i] - tempi;
-                data[i-1] += tempr;
-                data[i] += tempi;
-            }
-            wtemp=wr;
-            wr += wr*wpr - wi*wpi;
-            wi += wi*wpr + wtemp*wpi;
-        }
-        mmax=istep;
+                   fft_buf[j-1] = fft_buf[i-1] - tempr;
+                   fft_buf[j] = fft_buf[i] - tempi;
+                   fft_buf[i-1] += tempr;
+                   fft_buf[i] += tempi;
+               }
+               wtemp=wr;
+               wr += wr*wpr - wi*wpi;
+               wi += wi*wpr + wtemp*wpi;
+           }
+           mmax=istep;
+    }
+
+    for(i=1; i< size; ++i) {
+        c = 0; // c will get v reversed
+        i_size = (uint32_t)(log(i)/log(2));
+
+        //(2 bytes are ok, because the buffer won't get any higher anyway)
+        p = (unsigned char *) &i;
+        q = (unsigned char *) &c;
+        q[1] = BitReverseTable256[p[0]];
+        q[0] = BitReverseTable256[p[1]];
+
+        c >>= (15-i_size);
+
+        fft_buf[c] = fft_buf[i];
+
+        //printf("%u %u\n", c, i);
     }
 
 

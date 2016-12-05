@@ -11,8 +11,8 @@ out vec2 UV;
 void main(){
 
 	// Output position of the vertex, in clip space : MVP * position
-	gl_Position = vec4(vertexPosition_modelspace, 0 , 1); // * vec4(1, .3, 1, 1);
-	//pixelPos = gl_Position.xy;
+	gl_Position = vec4(vertexPosition_modelspace, 0 , 1);// + vec4(-1.0, 0, 0, 0);
+	//pixelPos = gl_Position.xy;0
 
 	//gl_Position += vec4(0, -0.9,0,0);
 	/* vec4 projectedpos = mvpmatrix * vec4(in_Position, 1.0); */
@@ -21,5 +21,5 @@ void main(){
 	/* gl_Position = FinalPos; */
 
 	// UV of the vertex. No special space for this one.
-	UV = vertexUV;// * vec2(1, 0.3);
+	UV = vertexUV; // * vec2(1, 0.3);
 }
