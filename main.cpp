@@ -61,7 +61,7 @@ static unsigned int write_dx;
 static GLuint texId;
 static GLuint tex;
 static GLuint vao;
-static GLuint vbo[2];
+static GLuint vbo; //[2];
 
 static GLuint prog;
 
@@ -112,15 +112,8 @@ void setup_gl(char *zero_argv) {
 	glBindTexture(GL_TEXTURE_2D, tex);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, BUFSIZE, HEIGHT, 0, GL_ALPHA, GL_UNSIGNED_BYTE, 0);
 
-	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	//float bc[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-	//glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, bc);
 
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
@@ -132,32 +125,12 @@ void setup_gl(char *zero_argv) {
 		-1.0f, 1.0f
 	};
 
-	GLfloat tex_coords[] = {
-		-1.0f, -1.0f,
-		1.0f, -1.0f,
-		1.0f, 1.0f,
-		-1.0f, 1.0f
-	};
-
-	glGenBuffers(2, vbo);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+	glGenBuffers(1, &vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER,
 				 8*sizeof(GLfloat),
 				 vertices,
 				 GL_STATIC_DRAW);
-
-
-	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
-	glBufferData(GL_ARRAY_BUFFER,
-				 8*sizeof(GLfloat),
-				 tex_coords,
-				 GL_STATIC_DRAW);
-
-
-	glEnableVertexAttribArray(0); // pos
-	glEnableVertexAttribArray(1); // tex
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
 
 	_pixel_buf = (GLubyte*)malloc(_num_bytes);
 }
@@ -177,43 +150,35 @@ void setPixels(unsigned char* pixels) {
 	write_dx = (read_dx + 1) % VIDEO_SURFACE_NUM_PBOS;
 
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbos[read_dx]);
-	//glBindTexture(GL_TEXTURE_2D, tex);
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, BUFSIZE, HEIGHT, GL_ALPHA, GL_UNSIGNED_BYTE, 0);
+	//glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, BUFSIZE, HEIGHT, 0, GL_ALPHA, GL_UNSIGNED_BYTE, 0);
 
-	glBindBuffer(GL_PIXEL_PACK_BUFFER, pbos[write_dx]);
-	glBufferData(GL_PIXEL_PACK_BUFFER, _num_bytes, NULL, GL_STREAM_DRAW);
-	GLubyte* ptr = (GLubyte*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_WRITE_ONLY);
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbos[write_dx]);
+	glBufferData(GL_PIXEL_UNPACK_BUFFER, _num_bytes, NULL, GL_STREAM_DRAW);
+	GLubyte* ptr = (GLubyte*)glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
 	if(ptr) {
 		memcpy(ptr, pixels, _num_bytes);
-		glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+		glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
 	}
 
-	glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-	//glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 
 void draw(/*int x, int	y*/) {
 
 	glEnableVertexAttribArray(0); // pos
-	glEnableVertexAttribArray(1); // tex
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)0);
 
-	//glDepthMask(GL_FALSE);
-
-	//glBindVertexArray(vao);
 	glUseProgram(prog);
 
-	//glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, tex);
 
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-	//glDepthMask(GL_FALSE);
 
 	glDisableVertexAttribArray(0);
-	glDisableVertexAttribArray(1);
 }
 
 #endif /*__VISUAL*/
@@ -340,8 +305,8 @@ int main(int argc, char*argv[]) {
 		tex = 0;
 	}
 
-	if(*vbo) {
-		glDeleteBuffers(2, vbo);
+	if(vbo) {
+		glDeleteBuffers(1, &vbo);
 	}
 
 #endif /*__VISUAL__*/

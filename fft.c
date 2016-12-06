@@ -127,15 +127,14 @@ void four1(uint8_t *fft_buf, const uint8_t *data, size_t size) {
     //0 8 4 12 2 10 6 14 1 9  5 13	3 11  7 15
     //0 1 2	 3 4  5 6  7 8 9 10 11 12 13 14 15
 
-    double t1 = now_ms();
+    //double t1 = now_ms();
 
     // reverse binary reindexing
     unsigned int c;
-    uint32_t i_size;
     unsigned char *p, *q;
+    uint32_t i_offset = 15 - (uint32_t)(log(size-1)/log(2));
     for(i=1; i< size; ++i) {
         c = 0; // c will get v reversed
-        i_size = (uint32_t)(log(i)/log(2));
 
         //(2 bytes are ok, because the buffer won't get any higher anyway)
         p = (unsigned char *) &i;
@@ -143,11 +142,11 @@ void four1(uint8_t *fft_buf, const uint8_t *data, size_t size) {
         q[1] = BitReverseTable256[p[0]];
         q[0] = BitReverseTable256[p[1]];
 
-        c >>= (15-i_size);
+        c >>= i_offset;
 
         fft_buf[c] = data[i];
 
-        //printf("%u %u\n", c, i);
+        //printf("%u %u\n", i, c);
     }
 
     // here begins the Danielson-Lanczos section
@@ -178,9 +177,9 @@ void four1(uint8_t *fft_buf, const uint8_t *data, size_t size) {
            mmax=istep;
     }
 
+
     for(i=1; i< size; ++i) {
         c = 0; // c will get v reversed
-        i_size = (uint32_t)(log(i)/log(2));
 
         //(2 bytes are ok, because the buffer won't get any higher anyway)
         p = (unsigned char *) &i;
@@ -188,15 +187,14 @@ void four1(uint8_t *fft_buf, const uint8_t *data, size_t size) {
         q[1] = BitReverseTable256[p[0]];
         q[0] = BitReverseTable256[p[1]];
 
-        c >>= (15-i_size);
+        c >>= i_offset;
 
         fft_buf[c] = fft_buf[i];
 
         //printf("%u %u\n", c, i);
     }
 
-
-    printf("%.2fms\n", now_ms() - t1);
+    //printf("%.2fms\n", now_ms() - t1);
 }
 
 void fft(const uint8_t *buf, size_t size, uint8_t *out) {
