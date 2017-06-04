@@ -1,9 +1,9 @@
 DEFINES:= -D__VISUAL__ #-D__OPEN_CL__
 
-PULSE_FLAGS = -lpulse -lpulse-simple -lOpenCL -lGLEW -lGL -lGLU -lglfw
+PULSE_FLAGS = -lpthread -lpulse -lpulse-simple -lOpenCL -lGLEW -lGL -lGLU -lglfw
 
-CFLAGS:=-O3 -Wall -Wno-deprecated-declarations $(DEFINES) $(PULSE_FLAGS)
-CXXFLAGS:=-O3 -Wall -Wno-deprecated-declarations $(DEFINES) -std=c++11 $(PULSE_FLAGS)
+CFLAGS:=-O3 -Wall -Wno-deprecated-declarations -Wno-unused-function $(DEFINES) $(PULSE_FLAGS)
+CXXFLAGS:=-O3 -Wall -Wno-deprecated-declarations -Wno-unused-function $(DEFINES) -std=c++11 $(PULSE_FLAGS)
 CC=gcc
 CXX=g++
 CPP=cpp
@@ -17,7 +17,7 @@ all: pulse
 
 pulse: $(OBJECTS)
 	@echo $(OBJECTS)
-	$(CXX) $(CXXFLAGS) $(OBJECTS) -o $@
+	$(CXX) $(CXXFLAGS) $(OBJECTS) -g -o $@
 
 .c.o:
 	@echo "c compile"

@@ -149,6 +149,7 @@ void four1(uint8_t *fft_buf, const uint8_t *data, size_t size) {
         //printf("%u %u\n", i, c);
     }
 
+    n=size;
     // here begins the Danielson-Lanczos section
     mmax=2;
     while (n>mmax) {
@@ -194,6 +195,7 @@ void four1(uint8_t *fft_buf, const uint8_t *data, size_t size) {
         //printf("%u %u\n", c, i);
     }
 
+
     //printf("%.2fms\n", now_ms() - t1);
 }
 
@@ -228,10 +230,7 @@ void fft(const uint8_t *buf, size_t size, uint8_t *out) {
             mask_left >>= 1;
             mask_right <<= 1;
         }
-
         //x1 = buf;
-
-
         index += 4;
         ++buf;
     }
