@@ -57,10 +57,12 @@ int main(int argc, char*argv[]) {
 	}
 
 	uint8_t buf[BUFSIZE];
+
 #ifdef __VISUAL__
 	while ( wflgRead() ) {
 #else
 	while (1) {
+#endif /*__VISUAL__*/
 
 #ifdef __PROFILE
 		struct timeval t0, t1;
@@ -132,7 +134,9 @@ void read_samples(void *data) {
 	}
 
 	while(true) {
+
 		pthread_mutex_lock(&_mutex);
+
 		struct timeval t0/*, t1*/;
 		gettimeofday(&t0, 0);
 
@@ -148,6 +152,7 @@ void read_samples(void *data) {
 		gettimeofday(&t1, 0);
 		long elapsed = (t1.tv_sec-t0.tv_sec)*1000000 + t1.tv_usec-t0.tv_usec;
 		printf("2nd thread: reading in %d ms\n", elapsed);*/
+
 	}
 
   finish:
